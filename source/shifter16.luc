@@ -1,0 +1,23 @@
+module shifter16 (
+    // input clk,  // clock
+    // input rst,  // reset
+    input a[16], // Input to shift
+    input b[4], // shift by
+    input alufn[6], // ALUFN code (low 2)
+    output shifted[16] // Output unit
+  ) {
+
+  always {
+    shifted[15:0] = 0; // set first
+    
+    // Very mux-ey
+    case(alufn[1:0]) {
+      b00:
+        shifted = a << b[3:0]; // Shift left
+      b01:
+        shifted = a >> b[3:0]; // Shift right
+      b11:
+        shifted = a >>> b[3:0]; // Arithmetic shift (sign extension)
+    }
+  }
+}

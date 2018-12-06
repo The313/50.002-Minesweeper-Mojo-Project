@@ -1,0 +1,60 @@
+module alu16 (
+  input a[16],
+  input b[16],
+  input alufn[6],
+  output z,
+  output v,
+  output n,
+  output alu[16]
+  ) {
+
+  // instantiate each module
+  adder16 adder16;
+  boolean16 bool;
+  shifter16 shifter;
+  compare16 cmp;
+  
+  always {
+  
+    // assign module arguments to IOs.
+    adder16.a = a;
+    adder16.b = b;
+    adder16.alufn = alufn; 
+    z = adder16.z;
+    v = adder16.v;
+    n = adder16.n; 
+    
+    bool.a = a;
+    bool.b = b;
+    bool.alufn = alufn;
+    
+    shifter.a = a;
+    shifter.b = b;
+    shifter.alufn = alufn;
+    
+    cmp.alufn = alufn;
+    cmp.z = adder16.z;
+    cmp.v = adder16.v;
+    cmp.n = adder16.n;
+    
+    
+    alu = 0;
+    
+    // alufn[5:4] introduced to select which unit will supply the value for the ALU output
+    case(alufn[5:4]){
+    
+    b00:
+    alu = adder16.s; // adder output
+    
+    b01:
+    alu = bool.bool; // boolean unit output
+        
+    b10:
+    alu = shifter.shifted; // shifter output 
+        
+    b11:
+    alu = cmp.compared; // comparator output
+        
+    }
+  }
+}

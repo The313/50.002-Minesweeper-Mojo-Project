@@ -1,0 +1,121 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input io_dip[24], 
+    output io_led[24] 
+    
+  ) {
+  
+  sig rst;    // reset signal
+  
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+  }
+  
+  adder16 adder;
+  shifter16 shifter;
+  compare16 cmp;
+  boolean16 bool;
+  
+  always {
+  
+    
+    //23:16 -> as purely A from highest bit to lowest bit
+    //15:8 -> as purely B from highest bit to lowest bit
+    //7:2 -> ALUFN
+    
+    
+    io_led = 0;
+    
+    //Instantiation and initialisation of variables
+    
+    adder.a = 0;
+    adder.b = 0;
+    adder.alufn = 0;
+    
+    shifter.a = 0;
+    shifter.b = 0;
+    shifter.alufn = 0;
+    
+    cmp.z = 0;
+    cmp.n = 0;
+    cmp.v = 0;
+    cmp.alufn = 0;
+    
+    bool.alufn = 0;
+    bool.a = 0;
+    bool.b = 0;
+    
+    // Manual Test of ALU functionality by just using 8-bit of LSB for input a and b
+ 
+    
+    case(io_dip[1:0]) {
+      2b00:
+      
+        adder.a[7:0] = io_dip[23:16]; 
+        adder.b[7:0] = io_dip[15:8];
+        adder.alufn[1:0] = io_dip[3:2];
+        
+        io_led[15:8] = adder.s;
+        io_led[2] = adder.z;
+        io_led[1] = adder.v;
+        io_led[0] = adder.n;
+        
+      2b01:
+      
+        bool.a[7:0] = io_dip[23:16];
+        bool.b[7:0] = io_dip[15:8];
+        bool.alufn = io_dip[5:2];
+        
+        io_led[15:8] = bool.bool;
+        
+        
+      2b10: 
+      
+        shifter.a[7:0] = io_dip[23:16];
+        shifter.b[3:0] = io_dip[11:8];
+        shifter.alufn = io_dip[3:2];
+        
+        io_led[15:8] = shifter.shifted;
+        
+      2b11:
+      
+        //Adder specific logic   
+        adder.a[7:0] = io_dip[23:16]; 
+        adder.b[7:0] = io_dip[15:8];
+        adder.alufn = io_dip[5:4];
+        
+        io_led[15:8] = adder.s;
+        io_led[2] = adder.z;
+        io_led[1] = adder.v;
+        io_led[0] = adder.n;
+        
+        //comparator specific logic
+        cmp.z = adder.z;
+        cmp.v = adder.v;
+        cmp.n = adder.n;
+        cmp.alufn = io_dip[3:2];
+        io_led[23:16] = cmp.compared;
+    }
+    
+    
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+  }
+}
