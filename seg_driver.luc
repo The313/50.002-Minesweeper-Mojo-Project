@@ -34,6 +34,7 @@ module seg_driver (
     
   ) {
   
+  // Internal signals for data, dclk, sclk to be demuxed later
   sig int_data;
   sig int_dclk;
   sig int_sclk;
@@ -65,14 +66,13 @@ module seg_driver (
   
   // This is the counter that controls byte output.
   // It has 8 bits of division to line up with the end of the bit counter
-  // The counter is 
-  // Used to index into MEM_ADDR_PATTERN
+  // The counter is used to index into MEM_ADDR_PATTERN
   counter ctr_byte (
     #SIZE(6), #DIV(8), #TOP(55), #UP(1),
     .clk(clk), .rst(rst)
   );
   
-  // This is a counter that determines which memory column we are on.
+  // This is the counter that determines which column we are on.
   // The top is the max number of columns (zero-based)
   // It has 8 bits of division to align with the end of bit counter
   counter ctr_column (
@@ -82,23 +82,38 @@ module seg_driver (
   
   sig ctr_mem_column[4];
   
-  
-  // Pulse sclk[0] when column counter rolls over first time
-  // Pulse sclk[1] when it does for the second time
-  
   fsm col_state (#INIT(NORMAL), .clk(clk), .rst(rst)) = {
     NORMAL, ON_6, ON_0
   };
   
+  // Clock signal to row counter
   sig ctr_row_clk;
   
-  // No division: You'll see why
+  // This is the counter that determines which row we are on.
+  // The top is the max number of rows (zero-based)
+  // It has no division but it is clocked by ctr_row_clk signal
+  // which is controlled by the col_state fsm
+  // The value of the counter determines which set of pins the internal signals
+  // are connected to
   counter ctr_row (
     #SIZE(4), #DIV(0), #TOP(7), #UP(1),
     .clk(ctr_row_clk), .rst(rst)
   );
   
+  // Currently active row
   sig active_row[4];
+  
+  // Clock signal to sclk counter
+  sig ctr_row_to_sclk_clk;
+  
+  // This counter deliberately lags behind ctr_row, to tell the logic which 
+  // sclk output to pulse when a row is done.
+  counter ctr_row_to_sclk (
+    #SIZE(4), #DIV(0), #TOP(7), #UP(1),
+    .clk(ctr_row_to_sclk_clk), .rst(rst)
+  );
+  
+  sig active_sclk[4];
 
   
   // State of the driver.
@@ -121,23 +136,35 @@ module seg_driver (
     // Inversion required as srst is active low
     srst = 8x{~rst};
     
+    // Tie low first, modified later in fsm case 
     done = 0;
     int_sclk = 0;
     mem_rclk = 0;
-
     
+    /*
+    data = 8x{0};
+    dclk = 8x{0};
+    sclk = 8x{0};
+    */
+
+    // Internal dclk is the LSB of bit counter
     int_dclk = ctr_bit.value[0];
 
+    // Bit selector of data byte are the remaining bits of bit counter
     ctr_data_bit = ctr_bit.value[3:1];
+    
     ctr_mem_column = ctr_column.value;
     active_row = ctr_row.value;
+    active_sclk = ctr_row_to_sclk.value;
     
+    // FSM behaviour for ram_rclk_state
     case(ram_rclk_state.q) {
       ram_rclk_state.BEGIN_READ:
         // Rising edge: Pull data out of memory
         mem_rclk = 1;
         ram_rclk_state.d = ram_rclk_state.HIGH;  
       ram_rclk_state.HIGH:
+        // Bring it back down
         mem_rclk = 0;
         ram_rclk_state.d = ram_rclk_state.LOW;
       ram_rclk_state.LOW:
@@ -149,37 +176,49 @@ module seg_driver (
         }
     }
     
+    // col_state FSM behaviour: controls the sclk data
+    // ctr_column counts upwards
     case(col_state.q) {
       col_state.NORMAL:
+        ctr_row_to_sclk_clk = 0;
         if (ctr_mem_column == 4d6) {
           col_state.d = col_state.ON_6;
         }
       col_state.ON_6:
         // If column is 6, when roll over to 0, put the internal sclk high
+        // ctr_row_to_sclk_clk is still 0, so the active_sclk is not increased 
+        // when active_row is increased.
         // Also advance the row counter
         if (ctr_mem_column == 4d0) {
           col_state.d = col_state.ON_0;
           int_sclk = 1;
           ctr_row_clk = 1;
+          ctr_row_to_sclk_clk = 0;
         }
       col_state.ON_0:
         // When we leave 0, put sclk low to complete a pulse
+        // Now active_sclk can be increased when the int_sclk has been pulsed.
         if (ctr_mem_column == 4d1) {
           col_state.d = col_state.NORMAL;
           int_sclk = 0;
           ctr_row_clk = 0;
+          ctr_row_to_sclk_clk = 1;
         }
     }
     
     // Which data bit to send out now?
     int_data = rom.pattern[ctr_data_bit];
     
+    // memory address to read follows the hardcoded pattern
     mem_addr = MEM_ADDR_PATTERN[ctr_byte.value];
     
+    // Connect internal signals to real outputs.
+    // Did I need to fix these to 8x{0} earlier?
     data[active_row] = int_data;
     dclk[active_row] = int_dclk;
-    sclk[active_row] = int_sclk;
+    sclk[active_sclk] = int_sclk;
 
+    // driver_state FSM for done output 
     case(driver_state.q) {
       driver_state.FIRST_WRITE:
         done = 0;
