@@ -12,6 +12,7 @@
    
    mem_data to RAM read data port
    mem_addr to RAM read address port
+   mem_rclk to RAM read clock port
    done to game logic (or wherever)
    
    data, dclk, srst, sclk to appropriate i/o pins
@@ -23,6 +24,7 @@ module seg_driver (
     
     input mem_data[4], // 4 bit wide tile
     output mem_addr[$clog2(56)], // address 56 tiles
+    output mem_rclk, // memory read clock
     output done, // finished writing memory to output 
     
     output data[8], // data lines
@@ -103,7 +105,11 @@ module seg_driver (
   fsm driver_state (#INIT(FIRST_WRITE), .clk(clk), .rst(rst)) = {
     FIRST_WRITE, ABOUT_TO_FINISH, DONE
   };
- 
+  
+  // State of RAM read clock
+  fsm ram_rclk_state (#INIT(BEGIN_READ), .clk(clk), .rst(rst)) = {
+    LOW, HIGH, BEGIN_READ
+  };
       
   // Connect rom address to RAM data
   seg_rom rom (.address(mem_data));
@@ -117,12 +123,31 @@ module seg_driver (
     
     done = 0;
     int_sclk = 0;
+    mem_rclk = 0;
 
     
     int_dclk = ctr_bit.value[0];
+
     ctr_data_bit = ctr_bit.value[3:1];
     ctr_mem_column = ctr_column.value;
     active_row = ctr_row.value;
+    
+    case(ram_rclk_state.q) {
+      ram_rclk_state.BEGIN_READ:
+        // Rising edge: Pull data out of memory
+        mem_rclk = 1;
+        ram_rclk_state.d = ram_rclk_state.HIGH;  
+      ram_rclk_state.HIGH:
+        mem_rclk = 0;
+        ram_rclk_state.d = ram_rclk_state.LOW;
+      ram_rclk_state.LOW:
+        mem_rclk = 0;
+        // Monitor the ctr_bit for when the byte is over 
+        // and the last bit is being sent
+        if (ctr_data_bit == 3d7 && int_dclk == 1) {
+          ram_rclk_state.d = ram_rclk_state.BEGIN_READ;
+        }
+    }
     
     case(col_state.q) {
       col_state.NORMAL:
@@ -171,8 +196,5 @@ module seg_driver (
         done = 1;
         // Don't leave this state until reset
     }
-    
-    
-    
   }
 }
