@@ -1,0 +1,81 @@
+module mine_map (
+    input clk,  // clock
+    input rst,  // reset
+    input 
+    output out
+  ) {
+  
+  var row1[7][1];
+  var row2[7][1];
+  var row3[7][1];
+  var row4[7][1];
+  var row5[7][1];
+  var row6[7][1];
+  var row7[7][1];
+
+  
+  .clk(clk) {
+    .rst(rst) {
+      fsm game = {IDLE, LVL1, LVL2, LVL3, WIN, LOSE}; // our state machine
+    }
+  }
+
+  always {
+    out = 0;
+    rst = reset_cond.out;   // conditioned reset
+
+
+
+    case (game.q){
+      game.IDLE:
+        if (edge_detector_top){
+          game.d = game.LVL1;
+        }
+    
+      game.LVL1:
+        row1 = {1,1,0,0,0,0,0};
+        row2 = {0,0,1,1,0,0,0};
+        row3 = {0,0,0,0,0,0,0};
+        row4 = {0,0,1,0,0,0,0};
+        row5 = {0,1,0,0,0,0,0};
+        row6 = {1,0,0,0,1,0,0};
+        row7 = {0,0,1,0,0,1,0};
+        game.d = game.LVL2;
+        
+      game.LVL2:
+        row1 = {0,1,0,0,0,0,0};
+        row2 = {0,0,1,1,0,0,0};
+        row3 = {0,0,0,0,1,0,0};
+        row4 = {0,0,0,0,0,1,0};
+        row5 = {0,1,0,0,1,0,0};
+        row6 = {1,0,0,1,0,0,0};
+        row7 = {0,1,1,1,0,0,0};
+        game.d = game.LVL3;
+
+        
+      game.LVL3:
+        row1 = {1,1,0,0,0,0,1};
+        row2 = {0,0,0,0,1,0,0};
+        row3 = {0,0,0,0,0,0,0};
+        row4 = {0,1,1,0,1,0,1};
+        row5 = {0,1,0,1,0,1,0};
+        row6 = {0,0,0,0,1,0,0};
+        row7 = {0,0,1,0,1,0,0};
+        game.d = game.WIN;
+
+        
+      game.WIN:
+        row1 = {0,0,0,0,0,0,0};
+        row2 = {0,0,0,0,0,0,0};
+        row3 = {0,0,0,0,0,0,0};
+        row4 = {0,0,0,0,0,0,0};
+        row5 = {0,0,0,0,0,0,0};
+        row6 = {0,0,0,0,0,0,0};
+        row7 = {0,0,0,0,0,0,0};
+
+ 
+    }
+    
+    
+  }
+}
