@@ -17,7 +17,8 @@ module minefield_logic (
     output wadrs[6],
     output wdata[4],
     output wen,
-    output mf_state_reg_wd[2]
+    output wd[2],
+    output en
   ) {
   
   .clk(clk) {
@@ -50,17 +51,19 @@ module minefield_logic (
     done = 0;
     lost = 0;
     wen = 0;
+    en = 0;
     case (state.q) {
       state.PRE:
         mfstatewe = 1;
+        en = 1;
         if (~|mfstateval)
            if (flagpress){
-             mf_state_reg_wd[1:0] = 2b10; 
+             wd[1:0] = 2b10; 
            }else {
              if (settoclear)
-              mf_state_reg_wd = 2b01; 
+              wd = 2b01; 
              else {   
-              mf_state_reg_wd = 0;
+              wd = 0;
              }
            } 
         if (!flagpress) 
