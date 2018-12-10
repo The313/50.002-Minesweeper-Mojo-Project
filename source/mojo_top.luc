@@ -10,106 +10,93 @@ module mojo_top (
     output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
     input avr_tx,           // AVR TX (FPGA RX)
     output avr_rx,          // AVR RX (FPGA TX)
-    input io_dip[24], 
-    output io_led[24] 
+    input avr_rx_busy  ,     // AVR RX buffer full
     
+    input row_button[8],  //button lines
+    output col_button[7],  //button lines
+    input flag[1],
+    
+    output data[8], // data lines
+    output dclk[8], // data clock lines
+    output srst[8], // storage register reset lines
+    output sclk[8] // storage clock lines 
+
   ) {
   
-  sig rst;    // reset signal
+  sig rst;                  // reset signal
+  sig alu_16_a[16];
+  sig alu_16_b[16];
+  sig alu_16_alu[16];
+  sig alufn[6]; 
+  sig minefield_rom_adress[6];
+  sig mine_map1;
+  sig mine_map2;
+  sig mine_map3;
+  sig mf_reg_wen;
+  sig flagged;
+  sig btn_clk;
+  sig mf_logic_clk;
+  sig winning_condition_clk;
+  sig btn_pressed;
+  sig win_con_done;
+  sig win_con_win;
+  
+
+
   
   .clk(clk) {
     // The reset conditioner is used to synchronize the reset signal to the FPGA
     // clock. This ensures the entire FPGA comes out of reset at the same time.
     reset_conditioner reset_cond;
-  }
-  
-  adder16 adder;
-  shifter16 shifter;
-  compare16 cmp;
-  boolean16 bool;
-  
-  always {
-  
     
-    //23:16 -> as purely A from highest bit to lowest bit
-    //15:8 -> as purely B from highest bit to lowest bit
-    //7:2 -> ALUFN
-    
-    
-    io_led = 0;
-    
-    //Instantiation and initialisation of variables
-    
-    adder.a = 0;
-    adder.b = 0;
-    adder.alufn = 0;
-    
-    shifter.a = 0;
-    shifter.b = 0;
-    shifter.alufn = 0;
-    
-    cmp.z = 0;
-    cmp.n = 0;
-    cmp.v = 0;
-    cmp.alufn = 0;
-    
-    bool.alufn = 0;
-    bool.a = 0;
-    bool.b = 0;
-    
-    // Manual Test of ALU functionality by just using 8-bit of LSB for input a and b
- 
-    
-    case(io_dip[1:0]) {
-      2b00:
+    .rst(rst){
+      reg_file display_reg_file (#SIZE(64), #WIDTH(4));
+      seg_driver seg_driver;
       
-        adder.a[7:0] = io_dip[23:16]; 
-        adder.b[7:0] = io_dip[15:8];
-        adder.alufn[1:0] = io_dip[3:2];
-        
-        io_led[15:8] = adder.s;
-        io_led[2] = adder.z;
-        io_led[1] = adder.v;
-        io_led[0] = adder.n;
-        
-      2b01:
+
       
-        bool.a[7:0] = io_dip[23:16];
-        bool.b[7:0] = io_dip[15:8];
-        bool.alufn = io_dip[5:2];
-        
-        io_led[15:8] = bool.bool;
-        
-        
-      2b10: 
-      
-        shifter.a[7:0] = io_dip[23:16];
-        shifter.b[3:0] = io_dip[11:8];
-        shifter.alufn = io_dip[3:2];
-        
-        io_led[15:8] = shifter.shifted;
-        
-      2b11:
-      
-        //Adder specific logic   
-        adder.a[7:0] = io_dip[23:16]; 
-        adder.b[7:0] = io_dip[15:8];
-        adder.alufn = io_dip[5:4];
-        
-        io_led[15:8] = adder.s;
-        io_led[2] = adder.z;
-        io_led[1] = adder.v;
-        io_led[0] = adder.n;
-        
-        //comparator specific logic
-        cmp.z = adder.z;
-        cmp.v = adder.v;
-        cmp.n = adder.n;
-        cmp.alufn = io_dip[3:2];
-        io_led[23:16] = cmp.compared;
+      fsm game_level1(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN};
+      fsm game_level2(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN};
+      fsm game_level3(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN, END_GAME};
+
     }
     
+  }
+  .clk(btn_clk){
+  
+    button_conditioner button_conditioner;
     
+    .rst(rst){
+    
+    button_decoder button_decoder;
+    
+    }
+  }
+
+  .clk(mf_logic_clk){
+    .rst(rst){
+  
+    minefield_logic minefield_logic;
+    reg_file minefield_state_register (#SIZE(64), #WIDTH(2));
+    }
+  }
+  
+  .clk(winning_condition_clk){
+    .rst(rst){
+  
+    winning_condition winning_condition;
+    }
+  }
+    
+ 
+  alu16 alu16;
+  minefield_rom minefield_rom;
+  //simple_dual_ram ram(#SIZE(4), #DEPTH(64));
+  
+  
+  
+  
+  always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
     rst = reset_cond.out;   // conditioned reset
     
@@ -117,5 +104,275 @@ module mojo_top (
     spi_miso = bz;          // not using SPI
     spi_channel = bzzzz;    // not using flags
     avr_rx = bz;            // not using serial port
+    
+    mf_logic_clk = 0;
+    btn_clk = 0;
+    winning_condition_clk = 0;
+   
+    
+    
+    // Instantitaion
+    
+    //winning_condition
+ 
+    minefield_rom.address = winning_condition.mfromadrs;
+    minefield_rom_adress = winning_condition.badrs;
+    winning_condition.minefield_logic_mfromadrs = minefield_rom_adress;
+    
+    winning_condition.mfstateval = minefield_state_register.rdata;
+    winning_condition.mfromval = minefield_rom.mine_map1;
+    win_con_done = winning_condition.done;
+    win_con_win = winning_condition.win;
+
+    
+    //button_conditioner
+    button_conditioner.in = flag;
+    flagged = button_conditioner.out;
+    
+    
+    //Display Register File
+    display_reg_file.raddr = seg_driver.mem_addr;
+    display_reg_file.wen = minefield_logic.wen;
+    display_reg_file.wdata = minefield_logic.wdata;
+    display_reg_file.waddr = button_decoder.addr;
+    
+    //Game Logic
+    alu_16_a = minefield_logic.alua;
+    alu_16_b = minefield_logic.alub;
+    alu_16_alu = alu16.alu;
+    alufn = minefield_logic.alufn;
+    minefield_rom_adress = minefield_logic.mfromadrs;
+    mf_reg_wen = minefield_logic.mfstatewe;
+    minefield_logic.badrs = button_decoder.addr;
+    minefield_logic.mfromval = minefield_state_register.rdata;
+    minefield_logic.mfstateval = minefield_state_register.rdata;
+    minefield_logic.flagbtn = flag;
+// 7-segment LED driver
+    data = seg_driver.data;
+    dclk = seg_driver.dclk;
+    srst = seg_driver.srst;
+    sclk = seg_driver.sclk;
+    seg_driver.mem_data = display_reg_file.rdata;
+    
+    
+    // Button Decoder
+    button_decoder.row_input = row_button;
+    col_button = button_decoder.col_drive;
+    btn_pressed = button_decoder.button_pressed;
+    
+    // ALU
+    alu16.a = alu_16_a;
+    alu16.b = alu_16_b;
+    alu16.alufn = alufn;
+    alu_16_alu = alu16.alu;
+    
+    // Minefield ROM
+    mine_map1 = minefield_rom.mine_map1;
+    mine_map2 = minefield_rom.mine_map2;
+    mine_map3 = minefield_rom.mine_map3;
+        
+    // Minefield State Register
+    minefield_state_register.raddr = minefield_logic.mfstatereg;
+    minefield_state_register.waddr = minefield_logic.mfstatereg;
+    minefield_state_register.wen = minefield_logic.mfstatewe;
+    minefield_state_register.wdata = minefield_logic.mf_state_reg_wd;
+    
+    
+    ///////////FSM///////////
+    
+    case (game_level1.q){
+    
+      game_level1.POLL:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+      
+        if (btn_pressed){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+        
+          game_level1.d = game_level1.CALCULATE;
+        }
+        
+      game_level1.CALCULATE:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+        
+        if (mine_map1 == 0 && minefield_logic.done){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+          
+          game_level1.d = game_level1.GOAL_CHECK;
+        } else {
+        
+          if (mine_map1 == 1 && minefield_logic.lost){
+        
+            mf_logic_clk = 0;
+            btn_clk = 0;
+            
+            game_level1.d = game_level1.LOST;
+            
+          }
+        }
+      
+      game_level1.GOAL_CHECK:
+      
+        winning_condition_clk = clk;
+        
+        if (win_con_done){
+        
+          winning_condition_clk = 0;  
+          
+          game_level1.d = game_level1.POLL; 
+          
+          } else {
+        
+          if (win_con_win){
+          
+            winning_condition_clk = 0;
+          
+            game_level1.d = game_level2.POLL;
+            }
+          }
+    }
+        
+      case (game_level2.q){
+    
+      game_level2.POLL:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+      
+        if (btn_pressed){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+        
+          game_level2.d = game_level2.CALCULATE;
+        }
+        
+      game_level2.CALCULATE:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+        
+        if (mine_map2 == 0 && minefield_logic.done){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+          
+          game_level2.d = game_level2.GOAL_CHECK;
+        } else {
+        
+          if (mine_map2 == 1 && minefield_logic.lost){
+        
+            mf_logic_clk = 0;
+            btn_clk = 0;
+            
+            game_level2.d = game_level2.LOST;
+            
+          }
+        }
+      
+      game_level2.GOAL_CHECK:
+      
+        winning_condition_clk = clk;
+        
+        if (win_con_done){
+        
+          winning_condition_clk = 0;  
+          
+          game_level2.d = game_level2.POLL; 
+          
+          } else {
+        
+          if (win_con_win){
+          
+            winning_condition_clk = 0;
+          
+            game_level2.d = game_level3.POLL;
+            }
+          }
+    }
+      case (game_level2.q){
+    
+      game_level3.POLL:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+      
+        if (btn_pressed){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+        
+          game_level3.d = game_level3.CALCULATE;
+        }
+        
+      game_level3.CALCULATE:
+      
+        mf_logic_clk = clk;
+        btn_clk = clk;
+        
+        if (mine_map3 == 0 && minefield_logic.done){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+          
+          game_level3.d = game_level3.GOAL_CHECK;
+        } else {
+        
+          if (mine_map3 == 1 && minefield_logic.lost){
+        
+            mf_logic_clk = 0;
+btn_clk = 0;
+            
+            game_level3.d = game_level3.LOST;
+            
+          }
+        }
+      
+      game_level3.GOAL_CHECK:
+      
+        winning_condition_clk = clk;
+        
+        if (win_con_done){
+        
+          winning_condition_clk = 0;  
+          
+          game_level3.d = game_level3.POLL; 
+          
+          } else {
+        
+          if (win_con_win){
+          
+            winning_condition_clk = 0;
+          
+            game_level3.d = game_level3.END_GAME;
+            }
+          }
+     
+            
+                
+                
+      game_level3.END_GAME:
+        
+        mf_logic_clk = clk;
+        btn_clk = clk;      
+        data = 0;
+                
+        if (flagged){
+        
+          mf_logic_clk = 0;
+          btn_clk = 0;
+          game_level3.d = game_level1.POLL;
+          }      
+              
+    }
+
+
   }
 }
