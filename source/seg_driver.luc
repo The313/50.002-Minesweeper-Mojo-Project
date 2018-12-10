@@ -84,7 +84,7 @@ module seg_driver #(
   };
       
   // Connect rom address to RAM data
-  seg_rom_hex rom (.address(mem_data));
+  seg_rom rom (.address(mem_data));
 
   always {
     // Reset all shift registers when component is reset 
