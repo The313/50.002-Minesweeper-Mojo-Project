@@ -7,6 +7,7 @@ module minefield_logic (
     output alufn[6],
     output mfromadrs[6],
     input mfromval[2],
+    input aluresult[16],
     input mfstateval[2],
     output mfstatereg[6],
     output lost,
@@ -105,7 +106,7 @@ module minefield_logic (
           8:
             state.d = state.UPDRAM;
         }
-        case (badrs) {
+        case (aluresult[5:0]) {
           0:ign = b00101111;
           1:ign = b10010111;
           56:ign = b11101001;
