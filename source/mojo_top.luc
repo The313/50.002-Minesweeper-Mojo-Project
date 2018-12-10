@@ -33,10 +33,13 @@ module mojo_top (
   sig advance_map_rst;      // Map counter reset signal
   
   sig mf_state_rst;      // Minefield state regfile reset signal
+  sig mem_write_counter_rst;       // Memory writing counter reset
   
   sig mf_logic_clk;      // Minefield logic clock 
   sig winning_condition_clk;      // Goal test clock
   sig advance_map_clk;      // Map counter clock
+  
+  sig mem_write_counter_clk;      // Memory writing counter clock
   
   // ALU signals
   sig alu_16_a[16];
@@ -46,6 +49,9 @@ module mojo_top (
   
   // Active mine map ROM's data (1 bit wide)
   sig mine_map;
+  
+  // Active mine map ROM's address
+  sig mine_addr[6];
 
   sig mf_reg_wen;      // Minefield state regfile write enable signal
   sig flagged;      // flagged button depressed signal
@@ -55,8 +61,9 @@ module mojo_top (
   sig win_con_done;      // Goal test logic didn't find a winning board
   sig win_con_win;      // Goal test logic found a winning board
   
+  sig memcpy_from[64][4];    // Copy constant array to display regfile
   
-  const SHOW_WIN = {
+  const SHOW_WIN = $reverse({
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0,
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0,
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0,
@@ -65,9 +72,9 @@ module mojo_top (
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0,
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0,
     4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h9, 4h0
-  };
+  });
   
-  const SHOW_LOSE = {
+  const SHOW_LOSE = $reverse({
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0,
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0,
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0,
@@ -76,7 +83,7 @@ module mojo_top (
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0,
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0,
     4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4hF, 4h0
-  };
+  });
 
 
   
@@ -85,23 +92,24 @@ module mojo_top (
     // clock. This ensures the entire FPGA comes out of reset at the same time.
     reset_conditioner reset_cond;
     
-    dff ctr64[$clog2(64)];
-    
     .rst(rst){
       reg_file display_reg_file (#SIZE(64), #WIDTH(4));
       seg_driver seg_driver;
       
 
       fsm pulser(#INIT(HIGH)) = {HIGH, LOW};
-      fsm game(#INIT(POLL)) = {IDLE, POLL, CALCULATE, GOAL_CHECK, LOST, WIN, COUNT64_LOST, COUNT64_WIN};
+      fsm game(#INIT(POLL)) = {IDLE, POLL, CALCULATE, GOAL_CHECK, LOST, WIN, COUNT64_LOST, COUNT64_WIN, MEMCPY, MEMCPY_END};
       
-      counter mem_write_counter (
-        #SIZE($clog2(64)), #DIV(2), #TOP(63), #UP(1)
-      );
+
 
 
     }
-    
+  }
+  
+  .clk(mem_write_counter_clk), .rst(mem_write_counter_rst){
+      counter mem_write_counter (
+        #SIZE($clog2(64)), #DIV(2), #TOP(63), #UP(1)
+      );
   }
   
   // Button components - conditioner and decoder
@@ -180,6 +188,11 @@ module mojo_top (
     advance_map_clk = 0;
     advance_map_rst = 0;
     
+    mem_write_counter_clk = 0;
+    mem_write_counter_rst = 0;
+    
+    memcpy_from = SHOW_LOSE;
+    
     // Connect goal test logic data input to regfile and minefield rom outputs
     winning_condition.mfstateval = minefield_state_register.rdata;
     winning_condition.mfromval = minefield_rom.mine_map[ctr.value];
@@ -242,7 +255,9 @@ module mojo_top (
     
     // Minefield ROM
     mine_map = minefield_rom.mine_map[ctr.value];
-    minefield_rom.address = minefield_logic.mfromadrs;
+    mine_addr = minefield_logic.mfromadrs;
+    minefield_rom.address = mine_addr;
+
  
         
     // Minefield State Register
@@ -317,6 +332,21 @@ module mojo_top (
         mf_logic_clk = clk;
         mf_logic_rst = comp_rst;
         pulser.d = pulser.HIGH;
+        
+        minefield_logic.mfromval = mine_map;
+        mine_addr = minefield_logic.mfromadrs;
+        
+        // Connect minefield logic
+        minefield_state_register.wen = minefield_logic.mfstatewe;
+        minefield_state_register.waddr = minefield_logic.writeadrs;
+        minefield_state_register.wdata = minefield_logic.wd;
+        minefield_state_register.raddr = minefield_logic.mfstatereg;
+        minefield_logic.mfstateval = minefield_state_register.rdata;
+        
+        // And disconnect goal checker
+        winning_condition.mfromval = 0;
+        winning_condition.mfstateval = 0;
+
 
         if (minefield_logic.done){
           // Done? Check if we won
@@ -342,6 +372,19 @@ module mojo_top (
         winning_condition_clk = clk;
         winning_condition_rst = comp_rst;
         pulser.d = pulser.HIGH;
+        
+        // Connect goal checker
+        mine_addr = winning_condition.mfromadrs;
+        winning_condition.mfromval = mine_map;
+        minefield_state_register.raddr = winning_condition.mfstateadrs;
+        winning_condition.mfstateval = minefield_state_register.rdata;
+        
+        // And disconnect game logic 
+        minefield_state_register.wen = 0;
+        minefield_state_register.waddr = 0;
+        minefield_state_register.wdata = 0;
+
+        
         
         if (win_con_done){
           // Accept next input
@@ -373,77 +416,35 @@ module mojo_top (
               
           }
        }
+      
+      game.MEMCPY:
+        // Begin clocking mem_write_counter
+        mem_write_counter_clk = clk;
+        mem_write_counter_rst = comp_rst;
+        pulser.d = pulser.HIGH;
+        
+        display_reg_file.wdata = memcpy_from[mem_write_counter.value];
+        display_reg_file.wen = 1;
+        display_reg_file.waddr = mem_write_counter.value;
+        
+        if (mem_write_counter.value == 63) {
+          game.d = game.MEMCPY_END;
+        }
+      
+      game.MEMCPY_END:
+        if (mem_write_counter.value == 6b0) {
+          game.d = game.IDLE;
+        }
         
       game.LOST:
-        // TODO
-      
-        ctr64.d = ctr64.q + 1;
-        
-        mf_logic_clk = clk;
-        mf_logic_rst = 1;
-        
-        
-        display_reg_file.wdata = SHOW_LOSE[mem_write_counter.value[5:1]];
-        display_reg_file.wen = clk;
-        display_reg_file.waddr = mem_write_counter.value[5:1];
-        
-        seg_driver.mem_data = display_reg_file.rdata;
-        display_reg_file.raddr = seg_driver.mem_addr;
-        
-        data = seg_driver.data;
-        dclk = seg_driver.dclk;
-        sclk = seg_driver.sclk;
-        srst = seg_driver.srst;
-        
-        game.d = game.COUNT64_LOST;
-        
-        
-      game.COUNT64_LOST:
-        
-        if (ctr64.q == 64){
-        
-          game.d = game.IDLE;
-          } else {
-        
-          game.d = game.LOST;
-          
-          }
-        
+
+        memcpy_from = SHOW_LOSE;
+        game.d = game.MEMCPY;
+
       game.WIN:
       
-        ctr64.d = ctr64.q + 1;
-        
-        mf_logic_clk = clk;
-        mf_logic_rst = 1;
-        
-        
-        display_reg_file.wdata = SHOW_WIN[mem_write_counter.value[5:1]];
-        display_reg_file.wen = clk;
-        display_reg_file.waddr = mem_write_counter.value[5:1];
-        
-        seg_driver.mem_data = display_reg_file.rdata;
-        display_reg_file.raddr = seg_driver.mem_addr;
-        
-        data = seg_driver.data;
-        dclk = seg_driver.dclk;
-        sclk = seg_driver.sclk;
-        srst = seg_driver.srst;
-        
-        
-        
-        game.d = game.COUNT64_LOST;
-        
-        
-      game.COUNT64_WIN:
-        
-        if (ctr64.q == 64){
-        
-          game.d = game.IDLE;
-          } else {
-        
-          game.d = game.WIN;
-          
-          }
+        memcpy_from = SHOW_WIN;
+        game.d = game.MEMCPY;
      }     
    }
  }
