@@ -1,19 +1,23 @@
-module button_decoder (
+module button_decoder #(
+    COL_SCAN_DIV = 20 : COL_SCAN_DIV > 0
+    )(
     input clk,  // clock
     input rst,  // reset
     input row_input[8],
     output col_drive[7],
     output addr[6],
-    output button_pressed[1]
+    output button_pressed[1],
+    output dbg_ctr_0
   ) {
   
 
   
     arbiter arbiter(#WIDTH(8));
   
+    // Default behaviour hold column for 0.02s (20ms)
     counter ctr_dec (
 
-    #SIZE(3), #DIV(6), #TOP(6), #UP(1),
+    #SIZE(3), #DIV(COL_SCAN_DIV), #TOP(6), #UP(1),
 
     .clk(clk), .rst(rst)
 
@@ -24,22 +28,39 @@ module button_decoder (
   
     encoder one_hot_enc(#WIDTH(8));
   
-    reset_conditioner rst_con[8](.clk(clk));
+    //reset_conditioner rst_con[8](.clk(clk));
     
+    // Minimum delay 5ms
+    button_conditioner btn_cond[8](#MIN_DELAY(5), .clk(clk));
+  
+  
+    .clk(clk), .rst(rst){
+      dff active_row[3];
+      dff active_col[3];
+    
+      fsm btn_state (#INIT(RELEASED)) = {
+        PRESSED, RELEASED, PRESSING
+      };
+    }
 
   always {
+    // High when value=0
+    dbg_ctr_0 = ~|ctr_dec.value;
+    
+    button_pressed =0;
+    
     //counter
     addr[2:0] = ctr_dec.value;
 
     //reset conditionner
-    rst_con.in = row_input;
+    btn_cond.in = row_input;
         
     //arbiter
-    arbiter.in = rst_con.out;
+    arbiter.in = btn_cond.out;
  
     
     //button pressed
-    button_pressed = |arbiter.out;
+    //button_pressed = |arbiter.out;
     
     //one hot decoder    
     one_hot_dec.in = ctr_dec.value;
@@ -49,5 +70,38 @@ module button_decoder (
     //one hot encoder
     one_hot_enc.in = arbiter.out;
     addr[5:3] = one_hot_enc.out;
+    
+    case (btn_state.q) {
+      btn_state.PRESSED:
+        // If the current column being driven is the same as last time...
+        if (ctr_dec.value == active_col.q) {
+          // And the current row scan input is the same as last time...
+          if (one_hot_enc.out == active_row.q) {
+            // Remain in pressed btn_state
+            btn_state.d = btn_state.PRESSED;
+          } else {
+            // This button is no longer pressed 
+            btn_state.d = btn_state.RELEASED;
+            
+            
+            
+            button_pressed = 0;
+            addr = 6b0;
+          }
+        }
+      btn_state.RELEASED:
+        if (|arbiter.out) {
+          active_col.d = ctr_dec.value;
+          active_row.d = one_hot_enc.out;
+          btn_state.d = btn_state.PRESSING; 
+        }
+        button_pressed = 0;
+        addr = 6b0;      
+      btn_state.PRESSING:          
+        // Latch this button
+        button_pressed = 1;
+        addr = c{active_row.q, active_col.q};
+        btn_state.d = btn_state.PRESSED;
+    } 
   }
 }
