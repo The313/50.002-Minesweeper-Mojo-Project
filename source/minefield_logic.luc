@@ -22,11 +22,11 @@ module minefield_logic (
   ) {
   
   .clk(clk) {
-    button_conditioner btnconditioner;
+    button_conditioner btnconditioner;          //button conditioner for flag
     
     .rst(rst) {
       fsm state = {PRE, OFFSET, UPDRAM, DONE};
-      counter count(#SIZE(3));
+      counter count(#SIZE(3));                  //counter for offset 
     }  
   }
   sig flagpress;  
@@ -53,7 +53,7 @@ module minefield_logic (
     displaywriteenable = 0;
     registerwriteaddress = 0;
     case (state.q) {
-      state.PRE:
+      state.PRE:                                //checking for register and rom if tile is empty, cleared, flagged
         registerwriteenable = 1;
         if (~|minefieldstatevalue)
            if (flagpress){
@@ -65,13 +65,13 @@ module minefield_logic (
               registerwritedata = 0;
              }
            } 
-        if (!flagpress) 
+        if (!flagpress)                         //checking for if mine was hit
           if (minefieldromvalue) 
             lost = 1;
           else 
             settoclear = 1;
             state.d = state.OFFSET;    
-      state.OFFSET:
+      state.OFFSET:                         //checking tile selected for offset into adjacent addresses to count adjacent mines
         case (count.value){
           0:
             alufn[0] = 1;
@@ -127,12 +127,12 @@ module minefield_logic (
           if (minefieldromvalue)
               counte.d = counte.q + 1;
                         
-      state.UPDRAM:
+      state.UPDRAM:                             //return number of adjacent mines, write data into display register
         displaywriteaddress = buttonaddress;
         displaywritedata = counte.q;
         displaywriteenable = 1;
         state.d = state.DONE;
-      state.DONE:
+      state.DONE:                               //return a done state and reset write enable signal
         done = 1;   
         displaywriteenable = 0;                        
    }
