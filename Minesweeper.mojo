@@ -4,7 +4,6 @@
     <src>adder16.luc</src>
     <src>shifter16.luc</src>
     <src top="true">mojo_top.luc</src>
-    <src>boolean16.luc</src>
     <src>seg_rom.luc</src>
     <src>alu16.luc</src>
     <src>reg_file.luc</src>
@@ -13,6 +12,7 @@
     <src>button_decoder.luc</src>
     <src>adder.luc</src>
     <src>winning_condition.luc</src>
+    <src>boolean16.luc</src>
     <src>seg_driver.luc</src>
     <src>compare16.luc</src>
     <ucf>Minesweeper.ucf</ucf>
