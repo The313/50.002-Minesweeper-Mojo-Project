@@ -1,28 +1,28 @@
 module minefield_logic (
     input clk,  // clock
     input rst,  // reset
-    input badrs[6],
+    input buttonaddress[6],
     output alua[16],
     output alub[16],
     output alufn[6],
-    output mfromadrs[6],
-    input mfromval[2],
+    output minefieldromaddress[6],
+    input minefieldromvalue[2],
     input aluresult[16],
-    input mfstateval[2],
-    output mfstatereg[6],
+    input  minefieldstatevalue[2],
+    output minefieldstateregister[6],
     output lost,
-    output mfstatewe,
+    output registerwriteenable,
     input flagbtn,
     output done,
-    output wadrs[6],
-    output wdata[4],
-    output wen,
-    output wd[2],
-    output writeadrs[6]
+    output displaywriteaddress[6],
+    output displaywritedata[4],
+    output displaywriteenable,
+    output registerwritedata[2],
+    output registerwriteaddress[6]
   ) {
   
   .clk(clk) {
-    button_conditioner btner;
+    button_conditioner btnconditioner;
     
     .rst(rst) {
       fsm state = {PRE, OFFSET, UPDRAM, DONE};
@@ -36,37 +36,37 @@ module minefield_logic (
  
   
   always {
-    mfstatereg = badrs;
-    mfstatewe = 0;
-    mfromadrs = badrs;
-    btner.in = flagbtn;
-    flagpress = btner.out;
+    minefieldstateregister = buttonaddress;
+    registerwriteenable = 0;
+    minefieldromaddress = buttonaddress;
+    btnconditioner.in = flagbtn;
+    flagpress = btnconditioner.out;
     alua = 0;
     alub = 0;
     alufn[5:1] =0;
     alufn[0] = 0;
-    wadrs = 0;
-    wdata = 0;
+    displaywriteaddress = 0;
+    displaywritedata = 0;
     settoclear = 0;
     done = 0;
     lost = 0;
-    wen = 0;
-    writeadrs = 0;
+    displaywriteenable = 0;
+    registerwriteaddress = 0;
     case (state.q) {
       state.PRE:
-        mfstatewe = 1;
-        if (~|mfstateval)
+        registerwriteenable = 1;
+        if (~|minefieldstatevalue)
            if (flagpress){
-             wd[1:0] = 2b10; 
+             registerwritedata[1:0] = 2b10; 
            }else {
              if (settoclear)
-              wd = 2b01; 
+              registerwritedata = 2b01; 
              else {   
-              wd = 0;
+              registerwritedata = 0;
              }
            } 
         if (!flagpress) 
-          if (mfromval) 
+          if (minefieldromvalue) 
             lost = 1;
           else 
             settoclear = 1;
@@ -75,35 +75,35 @@ module minefield_logic (
         case (count.value){
           0:
             alufn[0] = 1;
-            alua = badrs;
+            alua = buttonaddress;
             alub[3:0] = 4b1001; 
           1:
             alufn[0] = 1;
-            alua = badrs;
+            alua = buttonaddress;
             alub[3:0] = 4b1000;
           2:
             alufn[0] = 1;
-            alua = badrs;
+            alua = buttonaddress;
             alub[2:0] = 3b111;
           3:
             alufn[0] = 1;
-            alua = badrs;
+            alua = buttonaddress;
             alub[0] = 1;
           4:
             alufn[0] = 0;
-            alua = badrs;
+            alua = buttonaddress;
             alub[0] = 1;  
           5:
             alufn[0] = 0;
-            alua = badrs;
+            alua = buttonaddress;
             alub[2:0] = 3b111;
           6:
             alufn[0] = 0;
-            alua = badrs;
+            alua = buttonaddress;
             alub[3:0] = 4b1000;
           7:
             alufn[0] = 0;
-            alua = badrs;
+            alua = buttonaddress;
             alub[3:0] = 4b1001;
           8:
             state.d = state.UPDRAM;
@@ -124,17 +124,17 @@ module minefield_logic (
           default:
               ign = b00000000; 
         if (!ign)
-          if (mfromval)
+          if (minefieldromvalue)
               counte.d = counte.q + 1;
                         
       state.UPDRAM:
-        wadrs = badrs;
-        wdata = counte.q;
-        wen = 1;
+        displaywriteaddress = buttonaddress;
+        displaywritedata = counte.q;
+        displaywriteenable = 1;
         state.d = state.DONE;
       state.DONE:
         done = 1;   
-        wen = 0;                        
+        displaywriteenable = 0;                        
    }
   }
  }
