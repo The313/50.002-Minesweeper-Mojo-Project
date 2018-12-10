@@ -23,31 +23,37 @@ module mojo_top (
 
   ) {
   
-  sig rst;                  // reset signal
+  sig rst;                  // Global reset signal
   
-  sig btn_rst;
-  sig mf_logic_rst;
-  sig winning_condition_rst;
-  sig advance_map_rst;
+  sig comp_rst;    // Component reset signal (connect to any one of these reset signals and set pulser fsm)
   
-  sig mf_logic_clk;
-  sig winning_condition_clk;
-  sig advance_map_clk;
+  sig btn_rst;     // Button decoder reset signal
+  sig mf_logic_rst;      // Minefield logic reset signal
+  sig winning_condition_rst;      // Goal test reset signal
+  sig advance_map_rst;      // Map counter reset signal
   
+  sig mf_state_rst;      // Minefield state regfile reset signal
+  
+  sig mf_logic_clk;      // Minefield logic clock 
+  sig winning_condition_clk;      // Goal test clock
+  sig advance_map_clk;      // Map counter clock
+  
+  // ALU signals
   sig alu_16_a[16];
   sig alu_16_b[16];
   sig alu_16_alu[16];
   sig alufn[6]; 
   
+  // Active mine map ROM's data (1 bit wide)
   sig mine_map;
 
-  sig mf_reg_wen;
-  sig flagged;
-  sig btn_clk;
+  sig mf_reg_wen;      // Minefield state regfile write enable signal
+  sig flagged;      // flagged button depressed signal
+  sig btn_clk;      // Button decoder clock
   
   sig btn_pressed;
-  sig win_con_done;
-  sig win_con_win;
+  sig win_con_done;      // Goal test logic didn't find a winning board
+  sig win_con_win;      // Goal test logic found a winning board
   
   
   const SHOW_WIN = {
@@ -97,6 +103,8 @@ module mojo_top (
     }
     
   }
+  
+  // Button components - conditioner and decoder
   .clk(btn_clk){
   
     button_conditioner button_conditioner;
@@ -108,14 +116,21 @@ module mojo_top (
     }
   }
 
+  
+  // Minefield logic and state regfile 
   .clk(mf_logic_clk){
     .rst(mf_logic_rst){
   
     minefield_logic minefield_logic;
-    reg_file minefield_state_register (#SIZE(64), #WIDTH(2));
+    }
+    
+    .rst(mf_state_rst){
+      reg_file minefield_state_register (#SIZE(64), #WIDTH(2));
     }
   }
   
+  
+  // Goal test logic 
   .clk(winning_condition_clk){
     .rst(winning_condition_rst){
   
@@ -123,6 +138,7 @@ module mojo_top (
     }
   }
   
+  // current map counter (advanced on every cycle of advance_map_clk)
   .clk(advance_map_clk){
     .rst(advance_map_rst){
   
@@ -148,22 +164,27 @@ module mojo_top (
     spi_channel = bzzzz;    // not using flags
     avr_rx = bz;            // not using serial port
     
+    // Disconnect all clocks initially
     mf_logic_clk = 0;
     btn_clk = 0;
     winning_condition_clk = 0;
    
+    // Disconnect minefield rom data
+    mine_map = 0;
     
+    comp_rst = 0;
     
     // Instantitaion
     
-    //advance mine
+    // Disconnect map counter signals
     advance_map_clk = 0;
     advance_map_rst = 0;
     
-    //winning_condition
+    // Connect goal test logic data input to regfile and minefield rom outputs
     winning_condition.mfstateval = minefield_state_register.rdata;
     winning_condition.mfromval = minefield_rom.mine_map[ctr.value];
    
+    // Connect goal test output signals
     win_con_done = winning_condition.done;
     win_con_win = winning_condition.win;
 
@@ -174,28 +195,38 @@ module mojo_top (
     
     
     //Display Register File
+    // Connect read ports to display logic 
+    // and write ports to game logic
     display_reg_file.raddr = seg_driver.mem_addr;
     display_reg_file.wen = minefield_logic.wen;
     display_reg_file.wdata = minefield_logic.wdata;
     display_reg_file.waddr = button_decoder.addr;
     
+    seg_driver.mem_data = display_reg_file.rdata;
+
+    
     //Game Logic
+    // ALU connection
     alu_16_a = minefield_logic.alua;
     alu_16_b = minefield_logic.alub;
-    alu_16_alu = alu16.alu;
     alufn = minefield_logic.alufn;
-    mf_reg_wen = minefield_logic.mfstatewe;
-    minefield_logic.badrs = button_decoder.addr;
-    minefield_logic.mfromval = minefield_state_register.rdata;
-    minefield_logic.mfstateval = minefield_state_register.rdata;
-    minefield_logic.flagbtn = flag;
+    minefield_logic.aluresult = alu16.alu;
     
-    // 7-segment LED driver
+    // Minefield state regfile
+    mf_reg_wen = minefield_logic.mfstatewe;
+    minefield_logic.mfromval = mine_map;
+    minefield_logic.mfstateval = minefield_state_register.rdata;
+
+    // Minefield logic: Button address
+    minefield_logic.badrs = button_decoder.addr;
+    
+    minefield_logic.flagbtn = flagged;
+    
+    // 7-segment driver ports
     data = seg_driver.data;
     dclk = seg_driver.dclk;
     srst = seg_driver.srst;
     sclk = seg_driver.sclk;
-    seg_driver.mem_data = display_reg_file.rdata;
     
     
     // Button Decoder
@@ -207,7 +238,7 @@ module mojo_top (
     alu16.a = alu_16_a;
     alu16.b = alu_16_b;
     alu16.alufn = alufn;
-    alu_16_alu = alu16.alu;
+    alu_16_alu = alu16.alu;   // Is this used?
     
     // Minefield ROM
     mine_map = minefield_rom.mine_map[ctr.value];
@@ -229,13 +260,13 @@ module mojo_top (
     
       pulser.HIGH:
       
-        rst = 1;
+        comp_rst = 1;
 
         pulser.d = pulser.LOW;
     
       pulser.LOW:
       
-        rst = 0;
+        comp_rst = 0;
         
 
     }
@@ -263,78 +294,80 @@ module mojo_top (
         }
       
       game.POLL:
-        
-        mf_logic_clk = clk;
-        mf_logic_rst = 1;
+        // Entry point
+        // Reset and begin clocking button decoder
         btn_clk = clk;
-        btn_rst =1;
-        
-        
+        btn_rst = comp_rst;
         pulser.d = pulser.HIGH;
+        
+        // Possibly came from a state where state regfile is being reset.
+        // Disconnect it from reset line
+        mf_state_rst = 0;
 
-      
         if (btn_pressed){
-        
-          mf_logic_clk = 0;
-          btn_clk = 0;
-        
+          // Stop the btn_clk - the button address should be preserved
+          // If it's not, stick a pipeline in it
+          btn_clk = 0; 
+          btn_rst = 0;       
           game.d = game.CALCULATE;
         }
         
       game.CALCULATE:
-      
+        // Reset and begin clocking minefield logic
         mf_logic_clk = clk;
-        mf_logic_rst = 1;
-        btn_clk = clk;
-        btn_rst = 1;
-        
+        mf_logic_rst = comp_rst;
         pulser.d = pulser.HIGH;
 
-        
         if (minefield_logic.done){
-        
+          // Done? Check if we won
           mf_logic_clk = 0;
-          btn_clk = 0;
+          mf_logic_rst = 0;
           
           game.d = game.GOAL_CHECK;
-        } else {
-        
-          if (minefield_logic.lost){
-        
-            mf_logic_clk = 0;
-            btn_clk = 0;
-            
-            game.d = game.LOST;
-            
-          }
         }
+        
+        if (minefield_logic.lost){
+          // Blew ourselves up!
+          // Should go high before logic.done
+          mf_logic_clk = 0;
+          mf_logic_rst = 0;
+          
+          game.d = game.LOST;
+          
+        }
+        
       
       game.GOAL_CHECK:
       
         winning_condition_clk = clk;
-        winning_condition_rst = 1;
+        winning_condition_rst = comp_rst;
         pulser.d = pulser.HIGH;
         
         if (win_con_done){
-        
+          // Accept next input
           winning_condition_clk = 0;
           
           game.d = game.POLL; 
           
-          } else {
+        } else {
         
-          if ((ctr.value < b11) && win_con_win){
-          
+          if ((ctr.value < 2d2) && win_con_win){
+            // map counter is below b10 (Still have more fields to play)
             winning_condition_clk = 0;
             
-            advance_map_clk = pulser.q;
-            advance_map_rst = 1;
+            // Use the reset pulser to deliver a pulse on counter clock to advance it 
+            advance_map_clk = comp_rst;
+            pulser.d = pulser.HIGH;
+            // advance_map_rst = 0;
+            
+            // Reset the game minefield_state_register as well
+            mf_state_rst = comp_rst;
                       
             game.d = game.POLL;
             } else {
           
-              if ((ctr.value == b11) && win_con_win){
-            
+              if ((ctr.value == 2d2) && win_con_win){
+                // Out of minefields to give: player won the game
                 game.d = game.WIN;
               }
               
@@ -342,6 +375,7 @@ module mojo_top (
        }
         
       game.LOST:
+        // TODO
       
         ctr64.d = ctr64.q + 1;
         
