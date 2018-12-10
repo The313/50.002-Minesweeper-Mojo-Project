@@ -18,7 +18,7 @@ module minefield_logic (
     output wdata[4],
     output wen,
     output wd[2],
-    output en
+    output writeadrs[6]
   ) {
   
   .clk(clk) {
@@ -52,10 +52,10 @@ module minefield_logic (
     lost = 0;
     wen = 0;
     en = 0;
+    writeadrs = 0;
     case (state.q) {
       state.PRE:
         mfstatewe = 1;
-        en = 1;
         if (~|mfstateval)
            if (flagpress){
              wd[1:0] = 2b10; 
