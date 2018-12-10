@@ -356,6 +356,11 @@ module mojo_top (
         seg_driver.mem_data = display_reg_file.rdata;
         display_reg_file.raddr = seg_driver.mem_addr;
         
+        data = seg_driver.data;
+        dclk = seg_driver.dclk;
+        sclk = seg_driver.sclk;
+        srst = seg_driver.srst;
+        
         game.d = game.COUNT64_LOST;
         
         
@@ -385,7 +390,10 @@ module mojo_top (
         seg_driver.mem_data = display_reg_file.rdata;
         display_reg_file.raddr = seg_driver.mem_addr;
         
-        
+        data = seg_driver.data;
+        dclk = seg_driver.dclk;
+        sclk = seg_driver.sclk;
+        srst = seg_driver.srst;
         
         game.d = game.COUNT64_LOST;
         
