@@ -19,7 +19,7 @@ module alu16 (
     // assign module arguments to IOs.
     adder16.a = a;
     adder16.b = b;
-    adder16.alufn = alufn; 
+    adder16.alufn = alufn[1:0]; 
     z = adder16.z;
     v = adder16.v;
     n = adder16.n; 
