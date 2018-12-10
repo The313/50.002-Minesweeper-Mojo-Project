@@ -1,0 +1,31 @@
+module boolean16 (
+  input a[16],
+  input b[16],
+  input alufn[6],
+  output bool[16]
+  ) {
+
+  var i; 
+  
+  always {
+    bool[15:0] = 0;
+    case(alufn[3:0]){
+      b1000: // AND
+      for (i=0; i<16; i++){
+        bool[i] = a[i] & b[i];
+        }
+      b1110: // OR
+      for (i=0; i<16; i++){
+        bool[i] = a[i] | b[i];      
+        }
+      b0110: // XOR
+      for (i=0; i<16; i++){
+        bool[i] = a[i] ^ b[i];
+        }
+      b1010: // "A" 
+      for (i=0; i<16; i++){
+        bool[i] = a[i];
+      }
+    }
+  }   
+}

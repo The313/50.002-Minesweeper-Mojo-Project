@@ -1,0 +1,20 @@
+module compare16 (
+  input z,
+  input v,
+  input n,
+  input alufn[6], 
+  output compared[16] // the LSB is the only one with changing value
+  ) {
+
+  always {
+    compared[15:1] = 0; // only LSB is used for comparison   
+    case(alufn[2:1]){
+    b01: // true if a equals b
+    compared[0] = z;
+    b10: // true if a less than b
+    compared[0] = n ^ v;
+    b11: // true if a less than or equal to b
+    compared[0] = z | (n ^ v);
+    }
+  }
+}

@@ -1,0 +1,147 @@
+module adder16 ( // cascade of 8 1-bit full-adders
+  input a[16],
+  input b[16],
+  input alufn[2],
+  output s[16],
+  output z, // z is true when all s outputs are 0
+  output v, // v is true when addition operation overflows
+  output n // n is value of sum of last adder 
+  
+  ) {
+  
+      // Instantiate 16 1-bit full adders
+      adder adder0;
+      adder adder1;
+      adder adder2;
+      adder adder3;
+      adder adder4;
+      adder adder5;
+      adder adder6;
+      adder adder7;
+      adder adder8;
+      adder adder9;
+      adder adder10;
+      adder adder11;
+      adder adder12;
+      adder adder13;
+      adder adder14;
+      adder adder15;
+  
+  
+  always {
+      // for testing overflow
+      // connect a to the input of 1-bit adders
+      adder0.inp[0] = a[0];
+      adder1.inp[0] = a[1];
+      adder2.inp[0] = a[2];
+      adder3.inp[0] = a[3];
+      adder4.inp[0] = a[4];
+      adder5.inp[0] = a[5];
+      adder6.inp[0] = a[6];
+      adder7.inp[0] = a[7];
+      adder8.inp[0] = a[8];
+      adder9.inp[0] = a[9];
+      adder10.inp[0] = a[10];
+      adder11.inp[0] = a[11];
+      adder12.inp[0] = a[12];
+      adder13.inp[0] = a[13];
+      adder14.inp[0] = a[14];
+      adder15.inp[0] = a[15];
+      
+     
+      // connect b to the input of 1-bit adders
+      adder0.inp[1] = b[0] ^ alufn[0];
+      adder1.inp[1] = b[1] ^ alufn[0];
+      adder2.inp[1] = b[2] ^ alufn[0];
+      adder3.inp[1] = b[3] ^ alufn[0];
+      adder4.inp[1] = b[4] ^ alufn[0];
+      adder5.inp[1] = b[5] ^ alufn[0];
+      adder6.inp[1] = b[6] ^ alufn[0];
+      adder7.inp[1] = b[7] ^ alufn[0];
+      adder8.inp[1] = b[8] ^ alufn[0];
+      adder9.inp[1] = b[9] ^ alufn[0];
+      adder10.inp[1] = b[10] ^ alufn[0];
+      adder11.inp[1] = b[11] ^ alufn[0];
+      adder12.inp[1] = b[12] ^ alufn[0];
+      adder13.inp[1] = b[13] ^ alufn[0];
+      adder14.inp[1] = b[14] ^ alufn[0];
+      adder15.inp[1] = b[15] ^ alufn[0];
+      
+      // connect alufn[0] to the first adder as the first carryin
+      // subsequent carryout connects to the next adder as the carryin
+      adder0.inp[2] = alufn[0];
+      adder1.inp[2] = adder0.co;
+      adder2.inp[2] = adder1.co;
+      adder3.inp[2] = adder2.co;
+      adder4.inp[2] = adder3.co;
+      adder5.inp[2] = adder4.co;
+      adder6.inp[2] = adder5.co;
+      adder7.inp[2] = adder6.co;   
+      adder8.inp[2] = adder7.co;
+      adder9.inp[2] = adder8.co;
+      adder10.inp[2] = adder9.co;
+      adder11.inp[2] = adder10.co;
+      adder12.inp[2] = adder11.co;
+      adder13.inp[2] = adder12.co;
+      adder14.inp[2] = adder13.co; 
+      adder15.inp[2] = adder14.co;
+      
+      // Z is true when the S outputs are all zero  
+      // if any of the sum is 1, z gives 0
+      z = ~(adder0.sum | adder1.sum | adder2.sum | adder3.sum | adder4.sum | adder5.sum | adder6.sum | adder7.sum|
+            adder8.sum | adder9.sum | adder10.sum | adder11.sum | adder12.sum | adder13.sum | adder14.sum | adder15.sum); 
+      
+      // V is true if MSB of S is different from a and b
+      // V = XA15 and XB15 and invS15 or invXA15 and invXB15 and S15 , XA = A , XB = B xor alufn[0]
+      v = (a[15] & (b[15] ^ alufn[0]) & ~adder15.sum) | (~a[15] & ~(b[15] ^ alufn[0]) & adder15.sum); 
+      
+      // N is true when the S is negative(i.e., S15=1)
+      n = adder15.sum; 
+      
+    s = 0; 
+    case(alufn[1:0]) {
+    b00: // do addition
+      //for testing overflow
+      s[0] = adder0.sum;
+      s[1] = adder1.sum;
+      s[2] = adder2.sum;
+      s[3] = adder3.sum;
+      s[4] = adder4.sum;
+      s[5] = adder5.sum;
+      s[6] = adder6.sum;
+      s[7] = adder7.sum;
+      s[8] = adder8.sum;
+      s[9] = adder9.sum;
+      s[10] = adder10.sum;
+      s[11] = adder11.sum;
+      s[12] = adder12.sum;
+      s[13] = adder13.sum;
+      s[14] = adder14.sum;
+      s[15] = adder15.sum;
+        
+    b01: // do subtraction
+      s[0] = adder0.sum;
+      s[1] = adder1.sum;
+      s[2] = adder2.sum;
+      s[3] = adder3.sum;
+      s[4] = adder4.sum;
+      s[5] = adder5.sum;
+      s[6] = adder6.sum;
+      s[7] = adder7.sum;
+      s[8] = adder8.sum;
+      s[9] = adder9.sum;
+      s[10] = adder10.sum;
+      s[11] = adder11.sum;
+      s[12] = adder12.sum;
+      s[13] = adder13.sum;
+      s[14] = adder14.sum;
+      s[15] = adder15.sum; 
+      
+    b10: // do multiplication
+      s = a * b;  
+        
+    b11: // do modulo
+      s = a - (a/b) * b;
+    }
+  }
+}

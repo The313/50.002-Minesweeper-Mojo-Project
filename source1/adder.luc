@@ -1,0 +1,14 @@
+module adder(  // performs addition, subtraction, multiplication and modulo
+  input inp[3], // a is LSB, carry-in is MSB
+  output sum[0], 
+  output co[0],
+  output co8[0]
+  ) {
+  
+  always {
+    // sum and carry calculated based on Boolean algebra
+    sum = (inp[0] ^ inp[1]) ^ inp[2];
+    co = (inp[0] & inp[1]) | ((inp[0] ^ inp[1]) & inp[2]);
+    co8 = (inp[0] & inp[1]) | ((inp[0] ^ inp[1]) & inp[2]);
+  }
+}

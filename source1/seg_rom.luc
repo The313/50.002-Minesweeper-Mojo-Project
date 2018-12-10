@@ -1,0 +1,33 @@
+/*
+   This is basically a BCD to seven segment chip but in lucid
+*/
+
+module seg_rom (
+  input address[4],  // BCD digit to get
+  output pattern[8]   // ROM output
+) {
+ 
+  const PATTERN = {
+    b00010000,  // 0: Clear (_)
+    b01100000,  // 1
+    b11011010,  // 2
+    b11110010,  // 3
+    b01100110,  // 4
+    b10110110,  // 5
+    b10111110,  // 6
+    b11100000,  // 7
+    b11111110,  // 8
+    b11110110,  // 9
+    b00000000,  // A: Covered
+    b00111110,  // B: Bomb
+    b01001010,  // C: No bomb here
+    b00000000,  // D: 
+    b11111100,  // E: zero digit
+    b10001100   // F: Flag 
+  };
+  
+ 
+  always {
+    pattern = PATTERN[address]; // address indexes 8 bit blocks of TEXT
+  }
+}
