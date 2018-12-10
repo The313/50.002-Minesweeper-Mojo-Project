@@ -35,7 +35,7 @@ module winning_condition (
               done = 0;}
           } 
           else{
-            inv = mfromval^mfstateval;
+            inv = mfromval^isone;
             if (!inv){
               done = 1;}
             else{ 
