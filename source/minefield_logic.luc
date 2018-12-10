@@ -52,22 +52,25 @@ module minefield_logic (
     case (state.q) {
       state.PRE:
         mfstatewe = 1;
-        if (~|mfstateval)
+        if (~|mfstateval){
            if (flagpress){
              mf_state_reg_wd[1:0] = 2b10; 
            }else {
-             if (settoclear)
+             if (settoclear){
               mf_state_reg_wd = 2b01; 
-             else {   
+             }else {   
               mf_state_reg_wd = 0;
              }
-           } 
-        if (!flagpress) 
-          if (mfromval) 
+           }
+        }
+        if (!flagpress) {
+          if (mfromval){ 
             lost = 1;
-          else 
+          }else {
             settoclear = 1;
-            state.d = state.OFFSET;    
+            state.d = state.OFFSET; 
+          }
+        }
       state.OFFSET:
         case (count.value){
           0:
@@ -120,9 +123,11 @@ module minefield_logic (
               ign = b10010100;
           default:
               ign = b00000000; 
-        if (!ign)
-          if (mfromval)
+        if (!ign){
+          if (mfromval){
               counte.d = counte.q + 1;
+          }
+        }
                         
       state.UPDRAM:
         wadrs = badrs;
