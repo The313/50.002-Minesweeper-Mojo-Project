@@ -51,7 +51,6 @@ module minefield_logic (
     done = 0;
     lost = 0;
     wen = 0;
-    en = 0;
     writeadrs = 0;
     case (state.q) {
       state.PRE:

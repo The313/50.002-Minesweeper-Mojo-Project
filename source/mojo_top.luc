@@ -264,7 +264,7 @@ module mojo_top (
     minefield_state_register.raddr = minefield_logic.mfstatereg;
     minefield_state_register.waddr = minefield_logic.mfstatereg;
     minefield_state_register.wen = minefield_logic.mfstatewe;
-    minefield_state_register.wdata = minefield_logic.mf_state_reg_wd;
+    minefield_state_register.wdata = minefield_logic.wd;
     
     
     
