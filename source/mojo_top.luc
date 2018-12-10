@@ -54,7 +54,7 @@ module mojo_top (
       seg_driver seg_driver;
       
 
-      
+      fsm reset_sig(#INIT(HIGH)) = {HIGH, LOW};
       fsm game_level1(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN};
       fsm game_level2(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN};
       fsm game_level3(#INIT(POLL)) = {POLL, CALCULATE, GOAL_CHECK, LOST, WIN, END_GAME};
@@ -91,7 +91,6 @@ module mojo_top (
  
   alu16 alu16;
   minefield_rom minefield_rom;
-  //simple_dual_ram ram(#SIZE(4), #DEPTH(64));
   
   
   
@@ -117,7 +116,7 @@ module mojo_top (
  
     minefield_rom.address = winning_condition.mfromadrs;
     minefield_rom_adress = winning_condition.badrs;
-    winning_condition.minefield_logic_mfromadrs = minefield_rom_adress;
+    winning_condition.minefield_logic_mfromadrs = button_decoder.addr;
     
     winning_condition.mfstateval = minefield_state_register.rdata;
     winning_condition.mfromval = minefield_rom.mine_map1;
@@ -147,7 +146,8 @@ module mojo_top (
     minefield_logic.mfromval = minefield_state_register.rdata;
     minefield_logic.mfstateval = minefield_state_register.rdata;
     minefield_logic.flagbtn = flag;
-// 7-segment LED driver
+    
+    // 7-segment LED driver
     data = seg_driver.data;
     dclk = seg_driver.dclk;
     srst = seg_driver.srst;
@@ -178,7 +178,24 @@ module mojo_top (
     minefield_state_register.wdata = minefield_logic.mf_state_reg_wd;
     
     
+    
     ///////////FSM///////////
+    
+    case (reset_sig.q){
+    
+      reset_sig.HIGH:
+      
+        rst = 1;
+        reset_sig.d = reset_sig.LOW;
+    
+      reset_sig.LOW:
+      
+        rst = 0;
+        
+
+    }
+    
+    
     
     case (game_level1.q){
     
@@ -186,11 +203,14 @@ module mojo_top (
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
+
       
         if (btn_pressed){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
         
           game_level1.d = game_level1.CALCULATE;
         }
@@ -199,11 +219,15 @@ module mojo_top (
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
+
         
         if (mine_map1 == 0 && minefield_logic.done){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
+
           
           game_level1.d = game_level1.GOAL_CHECK;
         } else {
@@ -212,6 +236,7 @@ module mojo_top (
         
             mf_logic_clk = 0;
             btn_clk = 0;
+            reset_sig.d = reset_sig.LOW;
             
             game_level1.d = game_level1.LOST;
             
@@ -221,10 +246,12 @@ module mojo_top (
       game_level1.GOAL_CHECK:
       
         winning_condition_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
         
         if (win_con_done){
         
-          winning_condition_clk = 0;  
+          winning_condition_clk = 0;
+          reset_sig.d = reset_sig.LOW; 
           
           game_level1.d = game_level1.POLL; 
           
@@ -233,6 +260,7 @@ module mojo_top (
           if (win_con_win){
           
             winning_condition_clk = 0;
+            reset_sig.d = reset_sig.LOW;
           
             game_level1.d = game_level2.POLL;
             }
@@ -245,11 +273,13 @@ module mojo_top (
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
       
         if (btn_pressed){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
         
           game_level2.d = game_level2.CALCULATE;
         }
@@ -258,11 +288,13 @@ module mojo_top (
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
         
         if (mine_map2 == 0 && minefield_logic.done){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
           
           game_level2.d = game_level2.GOAL_CHECK;
         } else {
@@ -271,6 +303,7 @@ module mojo_top (
         
             mf_logic_clk = 0;
             btn_clk = 0;
+            reset_sig.d = reset_sig.LOW;
             
             game_level2.d = game_level2.LOST;
             
@@ -280,10 +313,12 @@ module mojo_top (
       game_level2.GOAL_CHECK:
       
         winning_condition_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
         
         if (win_con_done){
         
           winning_condition_clk = 0;  
+          reset_sig.d = reset_sig.LOW;
           
           game_level2.d = game_level2.POLL; 
           
@@ -292,22 +327,25 @@ module mojo_top (
           if (win_con_win){
           
             winning_condition_clk = 0;
+            reset_sig.d = reset_sig.LOW;
           
             game_level2.d = game_level3.POLL;
             }
           }
     }
-      case (game_level2.q){
+      case (game_level3.q){
     
       game_level3.POLL:
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
       
         if (btn_pressed){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
         
           game_level3.d = game_level3.CALCULATE;
         }
@@ -316,11 +354,13 @@ module mojo_top (
       
         mf_logic_clk = clk;
         btn_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
         
         if (mine_map3 == 0 && minefield_logic.done){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
           
           game_level3.d = game_level3.GOAL_CHECK;
         } else {
@@ -328,7 +368,8 @@ module mojo_top (
           if (mine_map3 == 1 && minefield_logic.lost){
         
             mf_logic_clk = 0;
-btn_clk = 0;
+            btn_clk = 0;
+            reset_sig.d = reset_sig.LOW;
             
             game_level3.d = game_level3.LOST;
             
@@ -338,10 +379,12 @@ btn_clk = 0;
       game_level3.GOAL_CHECK:
       
         winning_condition_clk = clk;
+        reset_sig.d = reset_sig.HIGH;
         
         if (win_con_done){
         
           winning_condition_clk = 0;  
+          reset_sig.d = reset_sig.LOW;
           
           game_level3.d = game_level3.POLL; 
           
@@ -350,6 +393,7 @@ btn_clk = 0;
           if (win_con_win){
           
             winning_condition_clk = 0;
+            reset_sig.d = reset_sig.LOW;
           
             game_level3.d = game_level3.END_GAME;
             }
@@ -361,13 +405,15 @@ btn_clk = 0;
       game_level3.END_GAME:
         
         mf_logic_clk = clk;
-        btn_clk = clk;      
+        btn_clk = clk;     
+        reset_sig.d = reset_sig.HIGH; 
         data = 0;
                 
         if (flagged){
         
           mf_logic_clk = 0;
           btn_clk = 0;
+          reset_sig.d = reset_sig.LOW;
           game_level3.d = game_level1.POLL;
           }      
               
