@@ -1,9 +1,7 @@
 module minefield_rom (
     input address[6],
-    output mine_map1[1],
-    output mine_map2[1],
-    output mine_map3[1]
-    
+    output mine_map[3][1]
+
     
   ) {
   
@@ -48,8 +46,7 @@ module minefield_rom (
     };
 
   always {
-    mine_map1 = MINE_MAP1[address];
-    mine_map2 = MINE_MAP2[address];
-    mine_map3 = MINE_MAP3[address];
+    mine_map = {MINE_MAP1[address], MINE_MAP2[address], MINE_MAP3[address]};
+
   }
 }
