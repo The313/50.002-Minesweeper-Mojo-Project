@@ -54,3 +54,5 @@ NET "col_button<3>" LOC = P66 | IOSTANDARD = LVTTL;
 NET "col_button<4>" LOC = P75 | IOSTANDARD = LVTTL;
 NET "col_button<5>" LOC = P74 | IOSTANDARD = LVTTL;
 NET "col_button<6>" LOC = P79 | IOSTANDARD = LVTTL;
+
+NET "flag" LOC = P120 | IOSTANDARD = LVTTL | PULLDOWN;
