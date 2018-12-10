@@ -35,12 +35,8 @@ module mojo_top (
   sig mf_state_rst;      // Minefield state regfile reset signal
   sig mem_write_counter_rst;       // Memory writing counter reset
   
-  sig mf_logic_clk;      // Minefield logic clock 
-  sig winning_condition_clk;      // Goal test clock
   sig advance_map_clk;      // Map counter clock
-  
-  sig mem_write_counter_clk;      // Memory writing counter clock
-  
+    
   // ALU signals
   sig alu_16_a[16];
   sig alu_16_b[16];
@@ -55,7 +51,6 @@ module mojo_top (
 
   sig mf_reg_wen;      // Minefield state regfile write enable signal
   sig flagged;      // flagged button depressed signal
-  sig btn_clk;      // Button decoder clock
   
   sig btn_pressed;
   sig win_con_done;      // Goal test logic didn't find a winning board
@@ -98,53 +93,39 @@ module mojo_top (
       
 
       fsm pulser(#INIT(HIGH)) = {HIGH, LOW};
-      fsm game(#INIT(POLL)) = {IDLE, POLL, CALCULATE, GOAL_CHECK, LOST, WIN, COUNT64_LOST, COUNT64_WIN, MEMCPY, MEMCPY_END};
-      
-
-
-
+      fsm game(#INIT(POLL)) = {IDLE, POLL, CALCULATE, GOAL_CHECK, LOST, WIN, MEMCPY, MEMCPY_END};
     }
-  }
-  
-  .clk(mem_write_counter_clk), .rst(mem_write_counter_rst){
+
       counter mem_write_counter (
-        #SIZE($clog2(64)), #DIV(2), #TOP(63), #UP(1)
+        #SIZE($clog2(64)), #DIV(2), #TOP(63), #UP(1),
+        .rst(mem_write_counter_rst)
       );
-  }
-  
-  // Button components - conditioner and decoder
-  .clk(btn_clk){
-  
-    button_conditioner button_conditioner;
-    
-    .rst(btn_rst){
-    
-    button_decoder button_decoder;
-    
-    }
-  }
+        // Button components - conditioner and decoder
 
-  
-  // Minefield logic and state regfile 
-  .clk(mf_logic_clk){
-    .rst(mf_logic_rst){
-  
-    minefield_logic minefield_logic;
-    }
+          button_conditioner button_conditioner;
+
+    button_decoder button_decoder (.rst(btn_rst));
+      
+        // Minefield logic and state regfile 
+
+            minefield_logic minefield_logic (.rst(mf_logic_rst));
+
+      reg_file minefield_state_register (#SIZE(64), #WIDTH(2), .rst(mf_state_rst));
     
-    .rst(mf_state_rst){
-      reg_file minefield_state_register (#SIZE(64), #WIDTH(2));
-    }
-  }
-  
   
   // Goal test logic 
-  .clk(winning_condition_clk){
     .rst(winning_condition_rst){
   
     winning_condition winning_condition;
     }
-  }
+
+    }
+  
+  
+  
+  
+  
+  
   
   // current map counter (advanced on every cycle of advance_map_clk)
   .clk(advance_map_clk){
@@ -171,12 +152,7 @@ module mojo_top (
     spi_miso = bz;          // not using SPI
     spi_channel = bzzzz;    // not using flags
     avr_rx = bz;            // not using serial port
-    
-    // Disconnect all clocks initially
-    mf_logic_clk = 0;
-    btn_clk = 0;
-    winning_condition_clk = 0;
-   
+       
     // Disconnect minefield rom data
     mine_map = 0;
     
@@ -188,7 +164,6 @@ module mojo_top (
     advance_map_clk = 0;
     advance_map_rst = 0;
     
-    mem_write_counter_clk = 0;
     mem_write_counter_rst = 0;
     
     memcpy_from = SHOW_LOSE;
@@ -291,10 +266,9 @@ module mojo_top (
     
       game.IDLE :
       
-        mf_logic_clk = clk;
-        mf_logic_rst = 1;
-        btn_clk = clk;
-        btn_rst =1;
+        mf_logic_rst = comp_rst;
+        btn_rst = comp_rst;
+        mf_state_rst = comp_rst;
         
         
         pulser.d = pulser.HIGH;
@@ -302,16 +276,12 @@ module mojo_top (
       
         if (btn_pressed){
         
-          mf_logic_clk = 0;
-          btn_clk = 0;
-        
           game.d = game.POLL;
         }
       
       game.POLL:
         // Entry point
         // Reset and begin clocking button decoder
-        btn_clk = clk;
         btn_rst = comp_rst;
         pulser.d = pulser.HIGH;
         
@@ -322,14 +292,12 @@ module mojo_top (
         if (btn_pressed){
           // Stop the btn_clk - the button address should be preserved
           // If it's not, stick a pipeline in it
-          btn_clk = 0; 
           btn_rst = 0;       
           game.d = game.CALCULATE;
         }
         
       game.CALCULATE:
         // Reset and begin clocking minefield logic
-        mf_logic_clk = clk;
         mf_logic_rst = comp_rst;
         pulser.d = pulser.HIGH;
         
@@ -350,7 +318,6 @@ module mojo_top (
 
         if (minefield_logic.done){
           // Done? Check if we won
-          mf_logic_clk = 0;
           mf_logic_rst = 0;
           
           game.d = game.GOAL_CHECK;
@@ -359,7 +326,6 @@ module mojo_top (
         if (minefield_logic.lost){
           // Blew ourselves up!
           // Should go high before logic.done
-          mf_logic_clk = 0;
           mf_logic_rst = 0;
           
           game.d = game.LOST;
@@ -369,7 +335,6 @@ module mojo_top (
       
       game.GOAL_CHECK:
       
-        winning_condition_clk = clk;
         winning_condition_rst = comp_rst;
         pulser.d = pulser.HIGH;
         
@@ -388,7 +353,6 @@ module mojo_top (
         
         if (win_con_done){
           // Accept next input
-          winning_condition_clk = 0;
           
           game.d = game.POLL; 
           
@@ -396,7 +360,6 @@ module mojo_top (
         
           if ((ctr.value < 2d2) && win_con_win){
             // map counter is below b10 (Still have more fields to play)
-            winning_condition_clk = 0;
             
             // Use the reset pulser to deliver a pulse on counter clock to advance it 
             advance_map_clk = comp_rst;
@@ -419,7 +382,6 @@ module mojo_top (
       
       game.MEMCPY:
         // Begin clocking mem_write_counter
-        mem_write_counter_clk = clk;
         mem_write_counter_rst = comp_rst;
         pulser.d = pulser.HIGH;
         
@@ -434,6 +396,10 @@ module mojo_top (
       game.MEMCPY_END:
         if (mem_write_counter.value == 6b0) {
           game.d = game.IDLE;
+          display_reg_file.wdata = 0;
+          display_reg_file.wen = 0;
+          display_reg_file.waddr = 0;
+
         }
         
       game.LOST:
