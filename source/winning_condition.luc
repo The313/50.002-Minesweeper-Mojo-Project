@@ -4,7 +4,7 @@ module winning_condition (
     input mfromval,
     output mfromadrs[6],
     input mfstateval[2],
-    output badrs[6],
+    output mfstateadrs[6],
     output done,
     output win
   ) {
@@ -24,7 +24,7 @@ module winning_condition (
     win = 0;
     isone = 0;
     mfromadrs = count.value;
-    badrs = count.value;
+    mfstateadrs = count.value;
     if(count.value[2:0] !=b111){
           if (mfstateval[0]){
             isone = 1;
@@ -35,7 +35,7 @@ module winning_condition (
               done = 0;}
           } 
           else{
-            inv = mfromval^isone;
+            inv = mfromval^mfstateval;
             if (!inv){
               done = 1;}
             else{ 

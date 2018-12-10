@@ -7,7 +7,7 @@ module seg_rom (
   output pattern[8]   // ROM output
 ) {
  
-  const PATTERN = $reverse({
+  const PATTERN = {
     b00010000,  // 0: Clear (_)
     b01100000,  // 1
     b11011010,  // 2
@@ -24,7 +24,8 @@ module seg_rom (
     b00000000,  // D: 
     b11111100,  // E: zero digit
     b10001100   // F: Flag 
-  });
+  };
+  
  
   always {
     pattern = PATTERN[address]; // address indexes 8 bit blocks of TEXT

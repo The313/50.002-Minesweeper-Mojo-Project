@@ -29,7 +29,7 @@ module alu16 (
     bool.alufn = alufn;
     
     shifter.a = a;
-    shifter.b = b[3:0];
+    shifter.b = b;
     shifter.alufn = alufn;
     
     cmp.alufn = alufn;
