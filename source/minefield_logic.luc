@@ -1,0 +1,138 @@
+module minefield_logic (
+    input clk,  // clock
+    input rst,  // reset
+    input badrs[6],
+    output alua[16],
+    output alub[16],
+    output alufn[6],
+    output mfromadrs[6],
+    input mfromval[2],
+    input mfstateval[2],
+    output mfstatereg[6],
+    output lost,
+    output mfstatewe,
+    input flagbtn,
+    output done,
+    output wadrs[6],
+    output wdata[4],
+    output wen,
+    output mf_state_reg_wd[2]
+  ) {
+  
+  .clk(clk) {
+    button_conditioner btner;
+    
+    .rst(rst) {
+      fsm state = {PRE, OFFSET, UPDRAM, DONE};
+      counter count(#SIZE(3));
+    }  
+  }
+  sig flagpress;  
+  sig settoclear;
+  sig ign;
+  dff counte[4](.clk(clk), .rst(rst));
+ 
+  
+  always {
+    mfstatereg = badrs;
+    mfstatewe = 0;
+    mfromadrs = badrs;
+    btner.in = flagbtn;
+    flagpress = btner.out;
+    alua = 0;
+    alub = 0;
+    alufn[5:1] =0;
+    alufn[0] = 0;
+    wadrs = 0;
+    wdata = 0;
+    settoclear = 0;
+    done = 0;
+    lost = 0;
+    wen = 0;
+    case (state.q) {
+      state.PRE:
+        mfstatewe = 1;
+        if (~|mfstateval)
+           if (flagpress){
+             mf_state_reg_wd[1:0] = 2b10; 
+           }else {
+             if (settoclear)
+              mf_state_reg_wd = 2b01; 
+             else {   
+              mf_state_reg_wd = 0;
+             }
+           } 
+        if (!flagpress) 
+          if (mfromval) 
+            lost = 1;
+          else 
+            settoclear = 1;
+            state.d = state.OFFSET;    
+      state.OFFSET:
+        case (count.value){
+          0:
+            alufn[0] = 1;
+            alua = badrs;
+            alub[3:0] = 4b1001; 
+          1:
+            alufn[0] = 1;
+            alua = badrs;
+            alub[3:0] = 4b1000;
+          2:
+            alufn[0] = 1;
+            alua = badrs;
+            alub[2:0] = 3b111;
+          3:
+            alufn[0] = 1;
+            alua = badrs;
+            alub[0] = 1;
+          4:
+            alufn[0] = 0;
+            alua = badrs;
+            alub[0] = 1;  
+          5:
+            alufn[0] = 0;
+            alua = badrs;
+            alub[2:0] = 3b111;
+          6:
+            alufn[0] = 0;
+            alua = badrs;
+            alub[3:0] = 4b1000;
+          7:
+            alufn[0] = 0;
+            alua = badrs;
+            alub[3:0] = 4b1001;
+          8:
+            state.d = state.UPDRAM;
+        }
+        case (badrs) {
+          0:ign = b00101111;
+          1:ign = b10010111;
+          56:ign = b11101001;
+          62:ign = b11110100;
+          b000xxx:
+              ign = b00000111;
+          b111xxx:
+              ign = b11100000;
+          bxxx000:
+              ign = b00101001;
+          bxxx110:
+              ign = b10010100;
+          default:
+              ign = b00000000; 
+        if (!ign)
+          if (mfromval)
+              counte.d = counte.q + 1;
+                        
+      state.UPDRAM:
+        wadrs = badrs;
+        wdata = counte.q;
+        wen = 1;
+        state.d = state.DONE;
+      state.DONE:
+        done = 1;   
+        wen = 0;                        
+   }
+  }
+ }
+}

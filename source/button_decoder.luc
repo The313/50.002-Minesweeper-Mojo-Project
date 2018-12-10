@@ -1,0 +1,53 @@
+module button_decoder (
+    input clk,  // clock
+    input rst,  // reset
+    input row_input[8],
+    output col_drive[7],
+    output addr[6],
+    output button_pressed[1]
+  ) {
+  
+
+  
+    arbiter arbiter(#WIDTH(8));
+  
+    counter ctr_dec (
+
+    #SIZE(3), #DIV(6), #TOP(6), #UP(1),
+
+    .clk(clk), .rst(rst)
+
+    );
+  
+  
+    decoder one_hot_dec(#WIDTH(3));
+  
+    encoder one_hot_enc(#WIDTH(8));
+  
+    reset_conditioner rst_con[8](.clk(clk));
+    
+
+  always {
+    //counter
+    addr[2:0] = ctr_dec.value;
+
+    //reset conditionner
+    rst_con.in = row_input;
+        
+    //arbiter
+    arbiter.in = rst_con.out;
+ 
+    
+    //button pressed
+    button_pressed = |arbiter.out;
+    
+    //one hot decoder    
+    one_hot_dec.in = ctr_dec.value;
+    col_drive = one_hot_dec.out[6:0];
+    
+      
+    //one hot encoder
+    one_hot_enc.in = arbiter.out;
+    addr[5:3] = one_hot_enc.out;
+  }
+}
