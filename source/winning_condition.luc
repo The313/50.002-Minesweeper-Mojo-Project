@@ -12,7 +12,7 @@ module winning_condition (
   
     .clk(clk) {
         .rst(rst) {
-            counter count(#SIZE(6),#UP(1));
+            counter count(#SIZE(6),#UP(1)); //counter to go through all possible address values
       }
     }
 
@@ -24,9 +24,9 @@ module winning_condition (
     win = 0;
     isone = 0;
     mfromadrs = count.value;
-    mfstateadrs = count.value;
-    if(count.value[2:0] !=b111){
-          if (mfstateval[0]){
+    mfstateadrs = count.value;  //values go to rom and register and return data as inputs
+    if(count.value[2:0] !=b111){    //skip the 8th count
+          if (mfstateval[0]){       // check if tile is cleared 
             isone = 1;
             inv = mfromval^isone;
             if (!inv){
@@ -34,14 +34,14 @@ module winning_condition (
             else{ 
               done = 0;}
           } 
-          else{
+          else{                     
             inv = mfromval^mfstateval;
             if (!inv){
               done = 1;}
             else{ 
               done = 0;}
           } 
-        if(count.value[5:0] == b111111){
+        if(count.value[5:0] == b111111){   //check if all tiles are cleared
           win = 1;
       }  
     }
