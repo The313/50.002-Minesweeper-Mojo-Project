@@ -4,7 +4,6 @@ module winning_condition (
     input mfromval,
     output mfromadrs[6],
     input mfstateval[2],
-    input minefield_logic_mfromadrs,
     output badrs[6],
     output done,
     output win
@@ -24,8 +23,8 @@ module winning_condition (
     done = 0;
     win = 0;
     isone = 0;
-    mfromadrs = minefield_logic_mfromadrs;
-    badrs = minefield_logic_mfromadrs;
+    mfromadrs = count.value;
+    badrs = count.value;
     if(count.value[2:0] !=b111)
           if (mfstateval[0]){
             isone = 1;
