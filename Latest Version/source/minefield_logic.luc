@@ -1,0 +1,215 @@
+module minefield_logic (
+    input clk,  // clock
+    input rst,  // reset
+    input buttonaddress[6],
+    output alua[16],
+    output alub[16],
+    output alufn[6],
+    output minefieldromaddress[6],
+    input minefieldromvalue[2],
+    input aluresult[16],
+    input  minefieldstatevalue[2],
+    output minefieldstateregister[6],
+    output lost,
+    output registerwriteenable,
+    input flagbtn,
+    output done,
+    output displaywriteaddress[6],
+    output displaywritedata[4],
+    output displaywriteenable,
+    output registerwritedata[2],
+    output registerwriteaddress[6],
+    
+    output debug[3]
+  ) {
+  
+  .clk(clk) {
+    button_conditioner btnconditioner;
+    
+    .rst(rst) {
+      fsm state (#INIT(PRE)) = {PRE, OFFSET, UPDRAM, DONE, LOSE};
+      counter count(#SIZE(4));
+    }  
+  }
+  sig flagpress;  
+  sig settoclear;
+  sig ign[8];
+  dff counte[4](.clk(clk), .rst(rst));
+ 
+  
+  always {
+    debug = 0;
+    registerwritedata = 0;
+    minefieldstateregister = buttonaddress;
+    registerwriteenable = 0;
+    minefieldromaddress = buttonaddress;
+    btnconditioner.in = flagbtn;
+    flagpress = btnconditioner.out;
+    alua = 0;
+    alub = 0;
+    alufn[5:1] =0;
+    alufn[0] = 0;
+    displaywriteaddress = 0;
+    displaywritedata = 0;
+    settoclear = 0;
+    done = 0;
+    lost = 0;
+    displaywriteenable = 0;
+    registerwriteaddress = 0;
+    case (state.q) {
+      state.PRE:
+        debug = 3d1;
+        /*
+        // Mine press test: state rf WE
+        registerwriteenable = 1;
+        if (minefieldstatevalue == 0) {
+           if (flagpress){
+          if (minefield)
+             registerwritedata[1:0] = ; 
+           }else {
+             if (settoclear)
+              registerwritedata = 2b01; 
+             else {   
+              registerwritedata = 0;
+             }
+           }
+        }  
+        if (!flagpress) 
+          if (minefieldromvalue) 
+            lost = 1;
+          else 
+            settoclear = 1;
+            state.d = state.OFFSET;
+        */
+        
+        if (flagpress == 0) {
+          //minefieldromaddress = buttonaddress;
+          if (minefieldstatevalue == 2b00) {
+            // Uncleared: do mine test  
+
+            if (minefieldromvalue == 1){
+              // lose 
+              state.d = state.LOSE;
+            } else {
+              // clear
+              registerwritedata = 2b01;
+              state.d = state.OFFSET;
+            }
+          } else {
+            state.d = state.DONE;
+          }
+        }
+        
+        if (flagpress == 1){ // flagpress == 1
+          // flag 
+          if (minefieldstatevalue == 2b00){
+            // currently uncleared - do flag
+            registerwritedata = 2b10;
+            registerwriteenable = 1;
+            displaywriteaddress = buttonaddress;
+            displaywritedata = 4hF;
+            displaywriteenable = 1;
+          }
+          if (minefieldstatevalue == 2b10){
+            // currently flagged - do unflag
+            registerwritedata = 2b00;
+            registerwriteenable = 1;
+            displaywriteaddress = buttonaddress;
+            displaywritedata = 4h0;
+            displaywriteenable = 1;
+          }
+          
+          state.d = state.DONE;
+        }
+          
+        
+        
+            
+      state.OFFSET:
+        debug = 3d2;
+        registerwriteenable = 0;
+        case (count.value){
+          0:
+            alufn[0] = 1;
+            alua = buttonaddress;
+            alub[3:0] = 4b1001; 
+          1:
+            alufn[0] = 1;
+            alua = buttonaddress;
+            alub[3:0] = 4b1000;
+          2:
+            alufn[0] = 1;
+            alua = buttonaddress;
+            alub[2:0] = 3b111;
+          3:
+            alufn[0] = 1;
+            alua = buttonaddress;
+            alub[0] = 1;
+          4:
+            alufn[0] = 0;
+            alua = buttonaddress;
+            alub[0] = 1;  
+          5:
+            alufn[0] = 0;
+            alua = buttonaddress;
+            alub[2:0] = 3b111;
+          6:
+            alufn[0] = 0;
+            alua = buttonaddress;
+            alub[3:0] = 4b1000;
+          7:
+            alufn[0] = 0;
+            alua = buttonaddress;
+            alub[3:0] = 4b1001;
+            // On next clock transition to UPDRAM
+            state.d = state.UPDRAM;
+
+          
+        }
+        
+        case (buttonaddress) {
+          6d0:ign = b00101111;
+          6d1:ign = b10010111;
+          6d56:ign = b11101001;
+          6d62:ign = b11110100;
+          b000xxx:
+              ign = b00000111;
+          b111xxx:
+              ign = b11100000;
+          bxxx000:
+              ign = b00101001;
+          bxxx110:
+              ign = b10010100;
+          default:
+              ign = b00000000; 
+        }
+        
+        minefieldromaddress = aluresult[5:0];
+        
+        if (ign[count.value] == 0) {
+              counte.d = counte.q + minefieldromvalue;
+        }
+                        
+      state.UPDRAM:
+          debug = 3d3;
+        displaywriteaddress = buttonaddress;
+        displaywritedata = counte.q;
+        displaywriteenable = 1;
+        state.d = state.DONE;
+      state.DONE:
+          debug = 3d4;
+        done = 1;   
+        displaywriteenable = 0;
+            registerwriteenable = 0;
+      state.LOSE:
+          debug = 3d5;
+        done = 0;
+        lost = 1;
+                    displaywriteenable = 0;
+            registerwriteenable = 0;
+
+                                  
+   }
+  }
+ }
+
