@@ -207,7 +207,7 @@ module mojo_top (
 
     // Minefield logic: Button address
     minefield_logic.buttonaddress = button_decoder.addr;
-    
+        
     minefield_logic.flagbtn = flagged;
     
     // 7-segment driver ports
@@ -243,6 +243,9 @@ module mojo_top (
     
     
     
+    led[4:2]=minefield_logic.debug;
+    
+    
     
     ///////////FSM///////////
     
@@ -257,21 +260,18 @@ module mojo_top (
       pulser.LOW:
       
         comp_rst = 0;
-        
-
     }
     
     
     case (game.q){
     
       game.IDLE :
-      
-        mf_logic_rst = comp_rst;
-        btn_rst = comp_rst;
-        mf_state_rst = comp_rst;
+        led[7:5]=3d0;
+        mf_logic_rst = 1;
+        btn_rst = 1;
+        mf_state_rst = 1;
         
         
-        pulser.d = pulser.HIGH;
 
       
         if (btn_pressed){
@@ -282,12 +282,14 @@ module mojo_top (
       game.POLL:
         // Entry point
         // Reset and begin clocking button decoder
-        btn_rst = comp_rst;
-        pulser.d = pulser.HIGH;
+        btn_rst = 0;
         
         // Possibly came from a state where state regfile is being reset.
         // Disconnect it from reset line
         mf_state_rst = 0;
+        mf_logic_rst = 0;
+        
+        led[7:5]=3d1;
 
         if (btn_pressed){
           // Stop the btn_clk - the button address should be preserved
@@ -298,13 +300,18 @@ module mojo_top (
         
       game.CALCULATE:
         // Reset and begin clocking minefield logic
-        mf_logic_rst = comp_rst;
-        pulser.d = pulser.HIGH;
+        mf_logic_rst = 0;
         
+        // Prepare to reset goal test 
+        winning_condition_rst = 1;
+        
+        led[7:5]=3d2;
+        
+        // Connect minefield logic to mine rom
         minefield_logic.minefieldromvalue = mine_map;
         mine_addr = minefield_logic.minefieldromaddress;
         
-        // Connect minefield logic
+        // Connect minefield logic to state memory
         minefield_state_register.wen = minefield_logic.registerwriteenable;
         minefield_state_register.waddr = minefield_logic.registerwriteaddress;
         minefield_state_register.wdata = minefield_logic.registerwritedata;
@@ -314,6 +321,7 @@ module mojo_top (
         // And disconnect goal checker
         winning_condition.mfromval = 0;
         winning_condition.mfstateval = 0;
+
 
 
         if (minefield_logic.done){
@@ -334,9 +342,9 @@ module mojo_top (
         
       
       game.GOAL_CHECK:
-      
-        winning_condition_rst = comp_rst;
-        pulser.d = pulser.HIGH;
+              led[7:5]=3d3;
+
+        winning_condition_rst = 0;
         
         // Connect goal checker
         mine_addr = winning_condition.mfromadrs;
@@ -367,7 +375,7 @@ module mojo_top (
             // advance_map_rst = 0;
             
             // Reset the game minefield_state_register as well
-            mf_state_rst = comp_rst;
+            mf_state_rst = 1;
                       
             game.d = game.POLL;
             } else {
@@ -381,6 +389,8 @@ module mojo_top (
        }
       
       game.MEMCPY:
+              led[7:5]=3d4;
+
         // Begin clocking mem_write_counter
         mem_write_counter_rst = comp_rst;
         pulser.d = pulser.HIGH;
@@ -394,6 +404,8 @@ module mojo_top (
         }
       
       game.MEMCPY_END:
+              led[7:5]=3d5;
+
         if (mem_write_counter.value == 6b0) {
           game.d = game.IDLE;
           display_reg_file.wdata = 0;
@@ -403,12 +415,14 @@ module mojo_top (
         }
         
       game.LOST:
+        led[7:5]=3d6;
 
         memcpy_from = SHOW_LOSE;
         game.d = game.MEMCPY;
 
       game.WIN:
-      
+              led[7:5]=3d7;
+
         memcpy_from = SHOW_WIN;
         game.d = game.MEMCPY;
      }     
