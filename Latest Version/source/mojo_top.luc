@@ -358,8 +358,6 @@ module mojo_top (
         minefield_state_register.wen = 0;
         minefield_state_register.waddr = 0;
         minefield_state_register.wdata = 0;
-
-        
         
         if (win_con_done){
           // Accept next input
@@ -370,7 +368,6 @@ module mojo_top (
         
           if ((ctr.value < 2d2) && win_con_win){
             // map counter is below b10 (Still have more fields to play)
-            
             // Use the reset pulser to deliver a pulse on counter clock to advance it 
             advance_map_clk = comp_rst;
             pulser.d = pulser.HIGH;
@@ -386,7 +383,6 @@ module mojo_top (
                 // Out of minefields to give: player won the game
                 game.d = game.WIN;
               }
-              
           }
        }
       
