@@ -163,8 +163,6 @@ module minefield_logic (
             alub[3:0] = 4b1001;
             // On next clock transition to UPDRAM
             state.d = state.UPDRAM;
-
-          
         }
         
         case (buttonaddress) {
